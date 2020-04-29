@@ -9,9 +9,11 @@ export default class StartPageComponent extends Component {
   @service videoSyncService;
   @service parentDomService;
   @service settingsService;
+  @service metricsService;
 
   @tracked showHeadphoneWarning = true;
   @tracked linkText = "Copy invite link";
+  @tracked isJoining = false;
 
   constructor() {
     super(...arguments);
@@ -21,11 +23,18 @@ export default class StartPageComponent extends Component {
 
   async attemptImmediateConnection() {
     await timeout(2000);
-    if (this.parentDomService.window.VEMOS_PEER_ID) {
+    let sepecifiedPeer = document
+      .querySelector("#vemos-peer-id")
+      ?.getAttribute("content");
+    if (sepecifiedPeer) {
+      this.metricsService.recordMetric("peer-specified");
       console.log("Connecting to peer specified in query param");
-      this.peerService.connectToPeer(
-        this.parentDomService.window.VEMOS_PEER_ID
-      );
+      this.peerService.connectToPeer(sepecifiedPeer);
+      this.isJoining = true;
+      await timeout(3000);
+      this.isJoining = false;
+    } else {
+      this.metricsService.recordMetric("no-peer-specified");
     }
   }
 
@@ -34,14 +43,17 @@ export default class StartPageComponent extends Component {
   }
 
   @action copyLink() {
-    this.videoSyncService.initialize();
+    this.metricsService.recordMetric("copied-invite-link");
     this.generateLink();
   }
 
   async generateLink() {
     let url = new URL(this.parentDomService.window.location.href);
     url.searchParams.append("vemos-id", this.peerService.peerId);
-    navigator.clipboard.writeText(url.toString());
+    navigator.clipboard.writeText(
+      "https://vemos.org/connect?destination=" +
+        encodeURIComponent(url.toString())
+    );
     this.linkText = "Copied!";
     await timeout(2000);
     this.linkText = "Copy invite link";
